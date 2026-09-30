@@ -68,7 +68,7 @@ grounded in a business's own data, and complete systems with a database,
 dashboards and error alerting.
 
 [ahmedramadan.pages.dev](https://ahmedramadan.pages.dev) ·
-[LinkedIn](https://www.linkedin.com/in/ahmedramadanselim) ·
+[LinkedIn](https://www.linkedin.com/in/ahmed-ramdan-selim-aa246434) ·
 mr.ahmedselim87@gmail.com
 
 Client work stays private. These are the general patterns underneath it.
