@@ -1,0 +1,192 @@
+{
+  "name": "Pattern — Rules before the model",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "message-in",
+        "options": {}
+      },
+      "id": "in",
+      "name": "Incoming Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = String($json.body.text ?? '').trim().toLowerCase();\n\nconst IGNORE = [/^(ok|okay|thanks|thank you|👍|شكرا)$/i];\nconst TEMPLATES = [\n  { match: /(working hours|opening hours|مواعيد)/i, reply: 'We are open 9am to 6pm, Sunday to Thursday.' },\n  { match: /(location|address|العنوان)/i,          reply: 'You can find us at <address>.' },\n];\n\nif (IGNORE.some(r => r.test(text))) return [{ json: { route: 'ignore', text } }];\n\nconst hit = TEMPLATES.find(t => t.match.test(text));\nif (hit) return [{ json: { route: 'template', text, reply: hit.reply } }];\n\nreturn [{ json: { route: 'model', text } }];"
+      },
+      "id": "rules",
+      "name": "Apply Rules",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ignore"
+                  }
+                ]
+              },
+              "outputKey": "ignore"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "template"
+                  }
+                ]
+              },
+              "outputKey": "template"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "model"
+                  }
+                ]
+              },
+              "outputKey": "model"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "drop",
+      "name": "Log and Stop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        180
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "tpl",
+      "name": "Send Template Reply",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "llm",
+      "name": "Ask the Model",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        680,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Apply Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Rules": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Log and Stop",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Template Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask the Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,134 @@
+{
+  "name": "Pattern — Message deduplication",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "message",
+        "options": {}
+      },
+      "id": "wh",
+      "name": "Incoming Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO processed_messages (message_id, channel)\nVALUES ($1, $2)\nON CONFLICT (message_id) DO NOTHING\nRETURNING message_id;",
+        "options": {
+          "queryReplacement": "={{ $json.body.message_id }},={{ $json.body.channel }}"
+        },
+        "alwaysOutputData": true
+      },
+      "id": "claim",
+      "name": "Claim Message Id",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              },
+              "leftValue": "={{ $json.message_id }}",
+              "rightValue": ""
+            }
+          ]
+        }
+      },
+      "id": "first",
+      "name": "First Time Seen?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "go",
+      "name": "Process Message",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "stop",
+      "name": "Duplicate — Stop",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Claim Message Id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Message Id": {
+      "main": [
+        [
+          {
+            "node": "First Time Seen?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "First Time Seen?": {
+      "main": [
+        [
+          {
+            "node": "Process Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicate — Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

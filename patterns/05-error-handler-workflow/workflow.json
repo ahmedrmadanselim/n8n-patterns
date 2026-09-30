@@ -1,0 +1,152 @@
+{
+  "name": "Pattern — Error handler with dedupe",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "err",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const e = $json.execution ?? {};\nconst w = $json.workflow ?? {};\nconst message = e.error?.message ?? 'unknown';\nconst node = e.lastNodeExecuted ?? 'unknown';\nreturn [{ json: {\n  fingerprint: `${w.name}::${node}::${message}`.slice(0, 400),\n  workflow: w.name, node, message,\n  url: e.url ?? null,\n} }];"
+      },
+      "id": "fp",
+      "name": "Build Fingerprint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO error_alerts (fingerprint) VALUES ($1)\nON CONFLICT (fingerprint) DO UPDATE\n  SET hits = error_alerts.hits + 1,\n      last_sent = CASE WHEN error_alerts.last_sent < now() - INTERVAL '15 minutes'\n                       THEN now() ELSE error_alerts.last_sent END\nRETURNING (last_sent > now() - INTERVAL '10 seconds') AS should_alert, hits;",
+        "options": {
+          "queryReplacement": "={{ $json.fingerprint }}"
+        }
+      },
+      "id": "dedupe",
+      "name": "Suppress Repeats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "leftValue": "={{ $json.should_alert }}",
+              "rightValue": ""
+            }
+          ]
+        }
+      },
+      "id": "should",
+      "name": "Should Alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "notify",
+      "name": "Send Alert",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "quiet",
+      "name": "Suppressed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Fingerprint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Fingerprint": {
+      "main": [
+        [
+          {
+            "node": "Suppress Repeats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suppress Repeats": {
+      "main": [
+        [
+          {
+            "node": "Should Alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Alert?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Suppressed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

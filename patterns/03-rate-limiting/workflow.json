@@ -1,0 +1,155 @@
+{
+  "name": "Pattern — Rate limiting",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rate-limited",
+        "options": {}
+      },
+      "id": "in",
+      "name": "Incoming Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One counter per user per 60-second window.\nconst userId = $json.body.user_id;\nconst window = Math.floor(Date.now() / 60000);\nreturn [{ json: { userId, key: `rl:${userId}:${window}`, limit: 10 } }];"
+      },
+      "id": "key",
+      "name": "Build Window Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "={{ $json.key }}",
+        "expire": true,
+        "ttl": 60
+      },
+      "id": "incr",
+      "name": "Increment Counter",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              },
+              "leftValue": "={{ $json.incr }}",
+              "rightValue": "={{ $('Build Window Key').item.json.limit }}"
+            }
+          ]
+        }
+      },
+      "id": "under",
+      "name": "Under Limit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "go",
+      "name": "Handle Request",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "throttle",
+      "name": "Send Throttle Notice",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Incoming Request": {
+      "main": [
+        [
+          {
+            "node": "Build Window Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Window Key": {
+      "main": [
+        [
+          {
+            "node": "Increment Counter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Counter": {
+      "main": [
+        [
+          {
+            "node": "Under Limit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Under Limit?": {
+      "main": [
+        [
+          {
+            "node": "Handle Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Throttle Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
